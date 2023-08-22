@@ -27,7 +27,7 @@ async function createCollectionsFromCanonical(collections) {
   for (const collection of db.collections) {
     const replicationState = await createReplicationState(collection);
     const replicationStateKey = getReplicationStateKey(collection.name);
-    state.replications[replicationStateKey].property = replicationState;
+    state.replications[replicationStateKey] = replicationState;
   }
 }
 
@@ -97,8 +97,7 @@ function syncDocsFromCanonical(collectionName, changedDocs) {
   const canonicalDocumentChangesKey =
     getCanonicalDocumentChangesKey(collectionName);
 
-  state.canonicalDocumentChanges[canonicalDocumentChangesKey].property =
-    changedDocs;
+  state.canonicalDocumentChanges[canonicalDocumentChangesKey] = changedDocs;
 
   replicationState.reSync();
 }
