@@ -21,6 +21,10 @@ function getCanonicalDocumentChangesKey(collectionName) {
   return `${collectionName}CanonicalDocumentChanges`;
 }
 
+async function test() {
+  return "test";
+}
+
 async function createCollectionsFromCanonical(collections) {
   console.log(collections);
   await db.addCollections(collections);
@@ -115,3 +119,5 @@ window.syncDocsFromCanonical = syncDocsFromCanonical;
 // Debug.
 window.db = db;
 window.state = state;
+
+window.test = test;
