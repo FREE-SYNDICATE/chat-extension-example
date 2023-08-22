@@ -100,8 +100,12 @@ async function createReplicationState(collection) {
 }
 
 function syncDocsFromCanonical(collectionName, changedDocs) {
+  console.log(collectionName, changedDocs);
+  if (Object.keys(changedDocs) === 0) {
+    return;
+  }
+
   const replicationStateKey = getReplicationStateKey(collectionName);
-  console.log(db, state, replicationStateKey);
   const replicationState = state.replications[replicationStateKey];
 
   const canonicalDocumentChangesKey =
