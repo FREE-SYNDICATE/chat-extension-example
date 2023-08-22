@@ -77,7 +77,7 @@ async function createReplicationState(collection) {
           state.canonicalDocumentChanges[canonicalDocumentChangesKey]; // TODO: Clear on processing? Batch size?
 
         if (!documents) {
-          return { checkpoint: lastCheckpoint, documents: {} };
+          return { checkpoint: lastCheckpoint, documents: [] };
         }
 
         const checkpoint =
