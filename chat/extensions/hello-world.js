@@ -70,11 +70,17 @@ async function createReplicationState(collection) {
     pull: {
       async handler(lastCheckpoint, batchSize) {
         console.log("Called pull handler with: ", lastCheckpoint, batchSize);
+        return { checkpoint: lastCheckpoint, documents: {} };
 
         const canonicalDocumentChangesKey =
           getCanonicalDocumentChangesKey(collectionName);
         const documents =
           state.canonicalDocumentChanges[canonicalDocumentChangesKey]; // TODO: Clear on processing? Batch size?
+
+        if (!documents) {
+          return { checkpoint: lastCheckpoint, documents: {} };
+        }
+
         const checkpoint =
           documents.length === 0
             ? lastCheckpoint
