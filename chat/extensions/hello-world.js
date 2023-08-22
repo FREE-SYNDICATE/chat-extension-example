@@ -29,11 +29,12 @@ async function createCollectionsFromCanonical(collections) {
   for (const [collectionName, collection] of collectionEntries) {
     console.log("foo");
     const replicationState = await createReplicationState(collection);
-    console.log(collection.name);
     const replicationStateKey = getReplicationStateKey(collectionName);
     console.log(replicationStateKey);
     state.replications[replicationStateKey] = replicationState;
   }
+
+  return "test";
 }
 
 async function createReplicationState(collection) {
