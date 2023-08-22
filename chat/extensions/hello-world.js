@@ -25,15 +25,16 @@ async function createCollectionsFromCanonical(collections) {
   console.log(collections);
   await db.addCollections(collections);
 
-  Object.entries(db.collections).forEach(([collectionName, collection]) => {
-    console.log("foo");
-    const replicationState = await createReplicationState(collection);
-    console.log(collection.name);
-    const replicationStateKey = getReplicationStateKey(collectionName);
-    console.log(replicationStateKey);
-    state.replications[replicationStateKey] = replicationState;
-    });
-
+  Object.entries(db.collections).forEach(
+    async ([collectionName, collection]) => {
+      console.log("foo");
+      const replicationState = await createReplicationState(collection);
+      console.log(collection.name);
+      const replicationStateKey = getReplicationStateKey(collectionName);
+      console.log(replicationStateKey);
+      state.replications[replicationStateKey] = replicationState;
+    }
+  );
 }
 
 async function createReplicationState(collection) {
