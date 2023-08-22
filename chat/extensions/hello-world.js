@@ -70,7 +70,6 @@ async function createReplicationState(collection) {
     pull: {
       async handler(lastCheckpoint, batchSize) {
         console.log("Called pull handler with: ", lastCheckpoint, batchSize);
-        return { checkpoint: lastCheckpoint, documents: {} };
 
         const canonicalDocumentChangesKey =
           getCanonicalDocumentChangesKey(collectionName);
