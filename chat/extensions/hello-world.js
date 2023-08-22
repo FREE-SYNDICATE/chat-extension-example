@@ -22,10 +22,12 @@ function getCanonicalDocumentChangesKey(collectionName) {
 }
 
 async function createCollectionsFromCanonical(collections) {
+  console.log(collections);
   await db.addCollections(collections);
 
   for (const collection of db.collections) {
     const replicationState = await createReplicationState(collection);
+    console.log(collection.name);
     const replicationStateKey = getReplicationStateKey(collection.name);
     state.replications[replicationStateKey] = replicationState;
   }
