@@ -110,3 +110,7 @@ function syncDocsFromCanonical(collectionName, changedDocs) {
 
 window.createCollectionsFromCanonical = createCollectionsFromCanonical;
 window.syncDocsFromCanonical = syncDocsFromCanonical;
+
+// Debug.
+window.db = db;
+window.state = state;
