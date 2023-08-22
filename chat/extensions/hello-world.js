@@ -12,7 +12,7 @@ const db = await createRxDatabase({
 });
 
 // TODO: Does rxdb have lifecycle callbacks we can use instead?
-window.webkit.messageHandlers.codeCoreIsReady.postMessage(null);
+//window.webkit.messageHandlers.codeCoreIsReady.postMessage(null);
 
 const state = { replications: {}, canonicalDocumentChanges: {} };
 
@@ -76,9 +76,9 @@ async function createReplicationState(collection) {
         const documents =
           state.canonicalDocumentChanges[canonicalDocumentChangesKey]; // TODO: Clear on processing? Batch size?
 
-        //if (!documents) {
-        //  return { checkpoint: lastCheckpoint, documents: {} };
-        //}
+        if (!documents) {
+          return { checkpoint: lastCheckpoint, documents: {} };
+        }
 
         const checkpoint =
           documents.length === 0
