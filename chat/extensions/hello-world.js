@@ -1,8 +1,8 @@
-import { addRxPlugin, createRxDatabase, lastOfArray } from "rxdb";
+import { addRxPlugin, createRxDatabase, lastOfArray } from "skypack:rxdb";
 
-import { RxDBDevModePlugin } from "rxdb/plugins/dev-mode";
-import { replicateRxCollection } from "rxdb/plugins/replication";
-import { getRxStorageMemory } from "rxdb/plugins/storage-memory";
+import { RxDBDevModePlugin } from "skypack:rxdb/plugins/dev-mode";
+import { replicateRxCollection } from "skypack:rxdb/plugins/replication";
+import { getRxStorageMemory } from "skypack:rxdb/plugins/storage-memory";
 
 addRxPlugin(RxDBDevModePlugin);
 
