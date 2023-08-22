@@ -11,6 +11,9 @@ const db = await createRxDatabase({
   storage: getRxStorageMemory(),
 });
 
+// TODO: Does rxdb have lifecycle callbacks we can use instead?
+window.webkit.messageHandlers.codeCoreIsReady.postMessage(null);
+
 const state = { replications: {}, canonicalDocumentChanges: {} };
 
 function getReplicationStateKey(collectionName) {
@@ -19,10 +22,6 @@ function getReplicationStateKey(collectionName) {
 
 function getCanonicalDocumentChangesKey(collectionName) {
   return `${collectionName}CanonicalDocumentChanges`;
-}
-
-async function test() {
-  return "test";
 }
 
 async function createCollectionsFromCanonical(collections) {
@@ -119,5 +118,3 @@ window.syncDocsFromCanonical = syncDocsFromCanonical;
 // Debug.
 window.db = db;
 window.state = state;
-
-window.test = test;
