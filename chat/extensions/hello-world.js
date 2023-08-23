@@ -73,11 +73,7 @@ async function createReplicationState(collection) {
         const canonicalDocumentChangesKey =
           getCanonicalDocumentChangesKey(collectionName);
         const documents =
-          state.canonicalDocumentChanges[canonicalDocumentChangesKey]; // TODO: Clear on processing? Batch size?
-
-        if (!documents) {
-          return { checkpoint: lastCheckpoint, documents: [] };
-        }
+          state.canonicalDocumentChanges[canonicalDocumentChangesKey] || []; // TODO: Clear on processing? Batch size?
 
         const checkpoint =
           documents.length === 0
@@ -105,9 +101,6 @@ async function createReplicationState(collection) {
 
 function syncDocsFromCanonical(collectionName, changedDocs) {
   console.log(collectionName, changedDocs);
-  //if (Object.keys(changedDocs) === 0) {
-  //  return;
-  //}
 
   const replicationStateKey = getReplicationStateKey(collectionName);
   const replicationState = state.replications[replicationStateKey];
