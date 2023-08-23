@@ -27,15 +27,12 @@ function getCanonicalDocumentChangesKey(collectionName) {
 }
 
 async function createCollectionsFromCanonical(collections) {
-  console.log(collections);
   await db.addCollections(collections);
 
   const collectionEntries = Object.entries(db.collections);
   for (const [collectionName, collection] of collectionEntries) {
-    console.log("foo");
     const replicationState = await createReplicationState(collection);
     const replicationStateKey = getReplicationStateKey(collectionName);
-    console.log(replicationStateKey);
     state.replications[replicationStateKey] = replicationState;
   }
 
@@ -108,9 +105,9 @@ async function createReplicationState(collection) {
 
 function syncDocsFromCanonical(collectionName, changedDocs) {
   console.log(collectionName, changedDocs);
-  if (Object.keys(changedDocs) === 0) {
-    return;
-  }
+  //if (Object.keys(changedDocs) === 0) {
+  //  return;
+  //}
 
   const replicationStateKey = getReplicationStateKey(collectionName);
   const replicationState = state.replications[replicationStateKey];
