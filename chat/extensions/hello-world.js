@@ -11,11 +11,6 @@ const db = await createRxDatabase({
   storage: getRxStorageMemory(),
 });
 
-// TODO: Does rxdb have lifecycle callbacks we can use instead?
-if ("webkit" in window) {
-  window.webkit.messageHandlers.codeCoreIsReady.postMessage(null);
-}
-
 const state = { replications: {}, canonicalDocumentChanges: {} };
 
 function getReplicationStateKey(collectionName) {
@@ -35,8 +30,6 @@ async function createCollectionsFromCanonical(collections) {
     const replicationStateKey = getReplicationStateKey(collectionName);
     state.replications[replicationStateKey] = replicationState;
   }
-
-  return "test";
 }
 
 async function createReplicationState(collection) {
@@ -50,20 +43,21 @@ async function createReplicationState(collection) {
     waitForLeadership: true,
     autoStart: true,
 
-    deletedField: "deleted", // TODO.
+    deletedField: "isDeleted",
 
     push: {
       async handler(docs) {
-        console.log("Called handler with: ", docs);
+        console.log("Called push handler with: ", docs);
 
-        // TODO:
-        // window.postMessage(JSON.stringify(docs), "*");
+        window.webkit.messageHandlers.surrogateDocumentChanges.postMessage(
+          JSON.stringify({ docs })
+        );
 
-        return {};
+        return [];
       },
 
       batchSize: 5,
-      modifier: (d) => d,
+      modifier: (doc) => doc,
     },
 
     pull: {
@@ -80,7 +74,7 @@ async function createReplicationState(collection) {
             ? lastCheckpoint
             : {
                 id: lastOfArray(documents).id,
-                updatedAt: lastOfArray(documents).updatedAt,
+                modifiedAt: lastOfArray(documents).modifiedAt,
               };
 
         window[`${collectionName}LastCheckpoint`] = checkpoint;
@@ -92,7 +86,7 @@ async function createReplicationState(collection) {
       },
 
       batchSize: 10,
-      modifier: (d) => d,
+      modifier: (doc) => doc,
     },
   });
 
@@ -100,8 +94,6 @@ async function createReplicationState(collection) {
 }
 
 function syncDocsFromCanonical(collectionName, changedDocs) {
-  console.log(collectionName, changedDocs);
-
   const replicationStateKey = getReplicationStateKey(collectionName);
   const replicationState = state.replications[replicationStateKey];
 
@@ -113,9 +105,15 @@ function syncDocsFromCanonical(collectionName, changedDocs) {
   replicationState.reSync();
 }
 
+// Public API.
 window.createCollectionsFromCanonical = createCollectionsFromCanonical;
 window.syncDocsFromCanonical = syncDocsFromCanonical;
 
 // Debug.
-window.db = db;
-window.state = state;
+//window._db = db;
+//window._state = state;
+
+// Signal readiness to Swift.
+if ("webkit" in window) {
+  window.webkit.messageHandlers.codeCoreIsReady.postMessage(null);
+}
