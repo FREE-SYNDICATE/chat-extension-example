@@ -49,9 +49,12 @@ async function createReplicationState(collection) {
       async handler(docs) {
         console.log("Called push handler with: ", docs);
 
-        window.webkit.messageHandlers.surrogateDocumentChanges.postMessage(
-          JSON.stringify({ docs })
-        );
+          window.webkit.messageHandlers.surrogateDocumentChanges.postMessage({
+              collectionName: collection.name,
+              changedDocs: docs.map((row) => {
+                  return row.newDocumentState
+              }),
+          });
 
         return [];
       },
@@ -110,10 +113,5 @@ window.createCollectionsFromCanonical = createCollectionsFromCanonical;
 window.syncDocsFromCanonical = syncDocsFromCanonical;
 
 // Debug.
-//window._db = db;
-//window._state = state;
-
-// Signal readiness to Swift.
-if ("webkit" in window) {
-  window.webkit.messageHandlers.codeCoreIsReady.postMessage(null);
-}
+window._db = db;
+window._state = state;
