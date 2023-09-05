@@ -4,6 +4,10 @@ import { RxDBDevModePlugin } from "skypack:rxdb/plugins/dev-mode";
 import { replicateRxCollection } from "skypack:rxdb/plugins/replication";
 import { getRxStorageMemory } from "skypack:rxdb/plugins/storage-memory";
 
+window.postMessage = function (data) {
+    window.webkit.messageHandlers.originalPostMessage.postMessage(data);
+}
+
 const EPOCH = new Date();
 
 addRxPlugin(RxDBDevModePlugin);
