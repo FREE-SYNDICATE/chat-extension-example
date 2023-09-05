@@ -4,7 +4,57 @@ import { RxDBDevModePlugin } from "skypack:rxdb/plugins/dev-mode";
 import { replicateRxCollection } from "skypack:rxdb/plugins/replication";
 import { getRxStorageMemory } from "skypack:rxdb/plugins/storage-memory";
 
+const EPOCH = new Date();
+
 addRxPlugin(RxDBDevModePlugin);
+
+function handleSubscriptionEvent(changeEvent) {
+  if (changeEvent) {
+  }
+}
+
+const ExamplePlugin = {
+  name: "example",
+  rxdb: true,
+  hooks: {
+    createRxCollection: {
+      after: async (args) => {
+        args.collection.$.subscribe(async (changeEvent) => {
+          if (
+            changeEvent.documentData.createdAt > EPOCH.getTime() &&
+            changeEvent.collectionName === "event"
+          ) {
+            const content = changeEvent.documentData.content;
+            const resp = await fetch(
+              "code://code/api.openai.com/v1/chat/completions",
+              {
+                method: "POST",
+                header: { "Content-Type": "application/json" },
+                data: {
+                  model: "gpt-3.5-turbo",
+                  messages: [
+                    {
+                      role: "system",
+                      content: "You are a helpful assistant.",
+                    },
+                    {
+                      role: "user",
+                      content,
+                    },
+                  ],
+                },
+              }
+            );
+            window.openaiResp = await resp.json();
+            //window.subs.push(changeEvent);
+          }
+        });
+      },
+    },
+  },
+};
+
+addRxPlugin(ExamplePlugin);
 
 const db = await createRxDatabase({
   name: "database", // TODO: Does this matter?
@@ -49,12 +99,12 @@ async function createReplicationState(collection) {
       async handler(docs) {
         console.log("Called push handler with: ", docs);
 
-          window.webkit.messageHandlers.surrogateDocumentChanges.postMessage({
-              collectionName: collection.name,
-              changedDocs: docs.map((row) => {
-                  return row.newDocumentState
-              }),
-          });
+        window.webkit.messageHandlers.surrogateDocumentChanges.postMessage({
+          collectionName: collection.name,
+          changedDocs: docs.map((row) => {
+            return row.newDocumentState;
+          }),
+        });
 
         return [];
       },
