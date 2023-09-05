@@ -26,7 +26,7 @@ const ExamplePlugin = {
           ) {
             const content = changeEvent.documentData.content;
             const resp = await fetch(
-              "code://code/api.openai.com/v1/chat/completions",
+              "code://code/load/api.openai.com/v1/chat/completions",
               {
                 method: "POST",
                 header: { "Content-Type": "application/json" },
