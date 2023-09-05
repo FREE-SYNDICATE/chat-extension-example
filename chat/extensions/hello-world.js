@@ -13,8 +13,8 @@ function handleSubscriptionEvent(changeEvent) {
   }
 }
 
-const ExamplePlugin = {
-  name: "example",
+const ChatOnMacPlugin = {
+  name: "chatonmac",
   rxdb: true,
   hooks: {
     createRxCollection: {
@@ -22,15 +22,17 @@ const ExamplePlugin = {
         args.collection.$.subscribe(async (changeEvent) => {
           if (
             changeEvent.documentData.createdAt > EPOCH.getTime() &&
-            changeEvent.collectionName === "event"
+            changeEvent.collectionName === "event" &&
+            !changeEvent.documentData.content.startsWith("bot:")
           ) {
             const content = changeEvent.documentData.content;
+            window.changeEvent = changeEvent;
             const resp = await fetch(
               "code://code/load/api.openai.com/v1/chat/completions",
               {
                 method: "POST",
-                header: { "Content-Type": "application/json" },
-                data: {
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
                   model: "gpt-3.5-turbo",
                   messages: [
                     {
@@ -42,11 +44,22 @@ const ExamplePlugin = {
                       content,
                     },
                   ],
-                },
+                }),
               }
             );
-            window.openaiResp = await resp.json();
-            //window.subs.push(changeEvent);
+            const llmResp = await resp.json();
+            window.llmResp = llmResp;
+
+            const events = window._db.collections["event"];
+            events.insert({
+              id: crypto.randomUUID(),
+              content: `bot:${llmResp.choices[0].message.content}`,
+              type: "message",
+              room: changeEvent.documentData.room,
+              sender: null, // Persona.
+              createdAt: new Date().getTime(),
+              modifiedAt: new Date().getTime(),
+            });
           }
         });
       },
@@ -54,7 +67,7 @@ const ExamplePlugin = {
   },
 };
 
-addRxPlugin(ExamplePlugin);
+addRxPlugin(ChatOnMacPlugin);
 
 const db = await createRxDatabase({
   name: "database", // TODO: Does this matter?
