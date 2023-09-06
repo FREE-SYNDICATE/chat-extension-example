@@ -147,6 +147,9 @@ const ChatOnMacPlugin = {
           ) {
             const content = changeEvent.documentData.content;
             window.changeEvent = changeEvent;
+
+              return;
+
             const resp = await fetch(
               "code://code/load/api.openai.com/v1/chat/completions",
               {
