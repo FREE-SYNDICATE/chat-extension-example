@@ -214,7 +214,7 @@ const ChatOnMacPlugin = {
             // TODO: Error handling.
             const data = await resp.json();
             const content = data.choices[0].message.content;
-            const createdAt = new Date.getTime();
+            const createdAt = new Date().getTime();
             const botPersona = await persona
               .findOne({ selector: { personaType: "bot" } })
               .exec();
@@ -345,3 +345,4 @@ window.syncDocsFromCanonical = syncDocsFromCanonical;
 // Debug.
 window._db = db;
 window._state = state;
+
