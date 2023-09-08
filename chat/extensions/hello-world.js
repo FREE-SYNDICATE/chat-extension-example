@@ -128,10 +128,6 @@ const EPOCH = new Date();
 
 addRxPlugin(RxDBDevModePlugin);
 
-function handleSubscriptionEvent(changeEvent) {
-  if (changeEvent) {
-  }
-}
 
 const ChatOnMacPlugin = {
   name: "chatonmac",
@@ -139,17 +135,61 @@ const ChatOnMacPlugin = {
   hooks: {
     createRxCollection: {
       after: async (args) => {
-        args.collection.$.subscribe(async (changeEvent) => {
+        const collection = args.collection;
+        const db = args.collection.database;
+        collection.$.subscribe(async ({ documentData, collectionName }) => {
+          const personas = db.collections["persona"];
+          console.log(documentData);
           if (
-            changeEvent.documentData.createdAt > EPOCH.getTime() &&
-            changeEvent.collectionName === "event" &&
-            !changeEvent.documentData.content.startsWith("bot:")
+            collectionName === "event" &&
+            documentData.createdAt > EPOCH.getTime()
           ) {
-            const content = changeEvent.documentData.content;
-            window.changeEvent = changeEvent;
-
+            const persona = await personas
+              .findOne({
+                selector: { id: documentData.persona },
+              })
+              .exec();
+            if (!persona?.personaType === "user") {
               return;
+            }
+            // Build message history.
+            const messages = await collection
+              .find({
+                selector: {
+                  room: documentData.room,
+                  isDeleted: false,
+                },
+                limit: 10, // TODO: This is constrained by the model's token limit.
+                sort: [{ createdAt: "desc" }],
+              })
+              .exec();
 
+            const messageHistory = await Promise.all(
+              messages.map(async ({ content, persona }) => {
+                const foundPersona = await personas
+                  .findOne({ selector: { id: persona } })
+                  .exec();
+                return {
+                  role:
+                    foundPersona.personaType === "bot" ? "assistant" : "user",
+                  content,
+                };
+              })
+            );
+
+            messageHistory.sort((a, b) => b - a);
+
+            console.log([
+              {
+                role: "system",
+                content: "You are a helpful assistant.",
+              },
+              ...messageHistory,
+              {
+                role: "user",
+                content: documentData.content,
+              },
+            ]);
             const resp = await fetch(
               "code://code/load/api.openai.com/v1/chat/completions",
               {
@@ -162,26 +202,30 @@ const ChatOnMacPlugin = {
                       role: "system",
                       content: "You are a helpful assistant.",
                     },
+                    ...messageHistory,
                     {
                       role: "user",
-                      content,
+                      content: documentData.content,
                     },
                   ],
                 }),
               }
             );
-            const llmResp = await resp.json();
-            window.llmResp = llmResp;
-
-            const events = window._db.collections["event"];
-            events.insert({
+            // TODO: Error handling.
+            const data = await resp.json();
+            const content = data.choices[0].message.content;
+            const createdAt = new Date.getTime();
+            const botPersona = await persona
+              .findOne({ selector: { personaType: "bot" } })
+              .exec();
+            collection.insert({
               id: crypto.randomUUID(),
-              content: `bot:${llmResp.choices[0].message.content}`,
+              content,
               type: "message",
-              room: changeEvent.documentData.room,
-              sender: null, // Persona.
-              createdAt: new Date().getTime(),
-              modifiedAt: new Date().getTime(),
+              room: documentData.room,
+              sender: botPersona.id,
+              createdAt,
+              modifiedAt: createdAt,
             });
           }
         });
@@ -301,4 +345,3 @@ window.syncDocsFromCanonical = syncDocsFromCanonical;
 // Debug.
 window._db = db;
 window._state = state;
-
