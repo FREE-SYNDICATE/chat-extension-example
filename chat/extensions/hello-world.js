@@ -124,10 +124,10 @@ const proxyConsole = () => {
 };
 proxyConsole();
 
+
 const EPOCH = new Date();
 
 addRxPlugin(RxDBDevModePlugin);
-
 
 const ChatOnMacPlugin = {
   name: "chatonmac",
@@ -135,29 +135,29 @@ const ChatOnMacPlugin = {
   hooks: {
     createRxCollection: {
       after: async (args) => {
-        const collection = args.collection;
         const db = args.collection.database;
-        collection.$.subscribe(async ({ documentData, collectionName }) => {
-          const personas = db.collections["persona"];
-          console.log(documentData);
-          if (
-            collectionName === "event" &&
-            documentData.createdAt > EPOCH.getTime()
-          ) {
-            const persona = await personas
-              .findOne({
-                selector: { id: documentData.persona },
-              })
-              .exec();
-            if (!persona?.personaType === "user") {
+        const collection = args.collection;
+
+        if (collection.name === "event") {
+          collection.$.subscribe(async ({ documentData, collectionName }) => {
+            if (documentData.createdAt < EPOCH.getTime()) {
               return;
             }
+            const personaCollection = db.collections["persona"];
+            const persona = await personaCollection
+              .findOne({
+                selector: { id: documentData.sender },
+              })
+              .exec();
+            if (persona?.personaType !== "user") {
+              return;
+            }
+
             // Build message history.
             const messages = await collection
               .find({
                 selector: {
                   room: documentData.room,
-                  isDeleted: false,
                 },
                 limit: 10, // TODO: This is constrained by the model's token limit.
                 sort: [{ createdAt: "desc" }],
@@ -166,7 +166,7 @@ const ChatOnMacPlugin = {
 
             const messageHistory = await Promise.all(
               messages.map(async ({ content, persona }) => {
-                const foundPersona = await personas
+                const foundPersona = await personaCollection
                   .findOne({ selector: { id: persona } })
                   .exec();
                 return {
@@ -176,20 +176,9 @@ const ChatOnMacPlugin = {
                 };
               })
             );
-
             messageHistory.sort((a, b) => b - a);
 
-            console.log([
-              {
-                role: "system",
-                content: "You are a helpful assistant.",
-              },
-              ...messageHistory,
-              {
-                role: "user",
-                content: documentData.content,
-              },
-            ]);
+            // TODO: Error handling.
             const resp = await fetch(
               "code://code/load/api.openai.com/v1/chat/completions",
               {
@@ -211,13 +200,16 @@ const ChatOnMacPlugin = {
                 }),
               }
             );
-            // TODO: Error handling.
             const data = await resp.json();
+
             const content = data.choices[0].message.content;
             const createdAt = new Date().getTime();
-            const botPersona = await persona
+
+            // TODO: Multiple bots.
+            const botPersona = await personaCollection
               .findOne({ selector: { personaType: "bot" } })
               .exec();
+
             collection.insert({
               id: crypto.randomUUID(),
               content,
@@ -227,8 +219,8 @@ const ChatOnMacPlugin = {
               createdAt,
               modifiedAt: createdAt,
             });
-          }
-        });
+          });
+        }
       },
     },
   },
@@ -277,7 +269,7 @@ async function createReplicationState(collection) {
 
     push: {
       async handler(docs) {
-        console.log("Called push handler with: ", docs);
+        //console.log("Called push handler with: ", docs);
 
         window.webkit.messageHandlers.surrogateDocumentChanges.postMessage({
           collectionName: collection.name,
@@ -295,7 +287,7 @@ async function createReplicationState(collection) {
 
     pull: {
       async handler(lastCheckpoint, batchSize) {
-        console.log("Called pull handler with: ", lastCheckpoint, batchSize);
+        //console.log("Called pull handler with: ", lastCheckpoint, batchSize);
 
         const canonicalDocumentChangesKey =
           getCanonicalDocumentChangesKey(collectionName);
