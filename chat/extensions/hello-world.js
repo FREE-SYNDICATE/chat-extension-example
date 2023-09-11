@@ -129,6 +129,8 @@ const EPOCH = new Date();
 
 addRxPlugin(RxDBDevModePlugin);
 
+let persona;
+
 const ChatOnMacPlugin = {
   name: "chatonmac",
   rxdb: true,
@@ -252,6 +254,18 @@ async function createCollectionsFromCanonical(collections) {
     const replicationStateKey = getReplicationStateKey(collectionName);
     state.replications[replicationStateKey] = replicationState;
   }
+
+    const codeExtension = await db.collections["code_extension"]
+        .findOne().exec();
+    const personaName = "ChatBOT"
+            case id
+    persona = db.collections["persona"].insert({
+        id: "[" + codeExtension.id + "][" + personaName + "]",
+        name: personaName,
+        personaType: "bot",
+        modelOptions: ["gpt-3.5-turbo", "gpt-4"],
+        modifiedAt: Date().getTime(),
+    });
 }
 
 async function createReplicationState(collection) {
