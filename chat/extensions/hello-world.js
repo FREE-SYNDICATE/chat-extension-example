@@ -129,8 +129,6 @@ const EPOCH = new Date();
 
 addRxPlugin(RxDBDevModePlugin);
 
-let persona;
-
 const ChatOnMacPlugin = {
   name: "chatonmac",
   rxdb: true,
@@ -208,9 +206,18 @@ const ChatOnMacPlugin = {
             const createdAt = new Date().getTime();
 
             // TODO: Multiple bots.
-            const botPersona = await personaCollection
+            let botPersona = await personaCollection
               .findOne({ selector: { personaType: "bot" } })
               .exec();
+            if (!botPersona) {
+                botPersona = db.collections["persona"].insert({
+                    id: crypto.randomUUID(),
+                    name: "ChatBOT,
+                    personaType: "bot",
+                    modelOptions: ["gpt-3.5-turbo", "gpt-4"],
+                    modifiedAt: Date().getTime(),
+                });
+            }
 
             collection.insert({
               id: crypto.randomUUID(),
@@ -254,18 +261,6 @@ async function createCollectionsFromCanonical(collections) {
     const replicationStateKey = getReplicationStateKey(collectionName);
     state.replications[replicationStateKey] = replicationState;
   }
-
-    const codeExtension = await db.collections["code_extension"]
-        .findOne().exec();
-    const personaName = "ChatBOT"
-            case id
-    persona = db.collections["persona"].insert({
-        id: "[" + codeExtension.id + "][" + personaName + "]",
-        name: personaName,
-        personaType: "bot",
-        modelOptions: ["gpt-3.5-turbo", "gpt-4"],
-        modifiedAt: Date().getTime(),
-    });
 }
 
 async function createReplicationState(collection) {
