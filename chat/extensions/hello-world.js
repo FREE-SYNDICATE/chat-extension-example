@@ -254,7 +254,15 @@ async function createCollectionsFromCanonical(collections) {
     state.replications[replicationStateKey] = replicationState;
   }
 
+    /*
+    for (const replicationState of Object.values(state.replications)) {
+        replicationState.reSync();
+        await replicationState.awaitInSync();
+    }
+    */
+
     // TODO: Multiple bots.
+    /*
     botPersona = await db.collections["persona"]
         .findOne({ selector: { personaType: "bot" } })
         .exec();
@@ -264,9 +272,10 @@ async function createCollectionsFromCanonical(collections) {
             name: "ChatBOT",
             personaType: "bot",
             modelOptions: ["gpt-3.5-turbo", "gpt-4"],
-            modifiedAt: Date().getTime(),
+            modifiedAt: new Date().getTime(),
         });
     }
+    */
 }
 
 async function createReplicationState(collection) {
@@ -352,4 +361,6 @@ window.syncDocsFromCanonical = syncDocsFromCanonical;
 // Debug.
 window._db = db;
 window._state = state;
+
+
 
