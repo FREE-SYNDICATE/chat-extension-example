@@ -312,7 +312,6 @@ async function createReplicationState(collection) {
 
         const canonicalDocumentChangesKey =
           getCanonicalDocumentChangesKey(collectionName);
-
         var documents = [];
         for (let i = 0; i < batchSize; i++) {
             const el = (state.canonicalDocumentChanges[canonicalDocumentChangesKey] || []).shift();
@@ -357,7 +356,7 @@ async function syncDocsFromCanonical(collectionName, changedDocs) {
   if (!state.canonicalDocumentChanges[canonicalDocumentChangesKey]) {
     state.canonicalDocumentChanges[canonicalDocumentChangesKey] = [];
   }
-  state.canonicalDocumentChanges[canonicalDocumentChangesKey].push = changedDocs;
+  state.canonicalDocumentChanges[canonicalDocumentChangesKey].push(changedDocs);
 
   replicationState.reSync();
     await replicationState.awaitInSync();
@@ -370,8 +369,5 @@ window.syncDocsFromCanonical = syncDocsFromCanonical;
 // Debug.
 window._db = db;
 window._state = state;
-
-
-
 
 
