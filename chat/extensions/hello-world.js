@@ -4,6 +4,7 @@ import { RxDBDevModePlugin } from "skypack:rxdb/plugins/dev-mode";
 import { replicateRxCollection } from "skypack:rxdb/plugins/replication";
 import { getRxStorageMemory } from "skypack:rxdb/plugins/storage-memory";
 
+/*
 // Console proxy, modified from livecodes
 // typeOf modified from https://github.com/alexindigo/precise-typeof/blob/master/index.js
 const typeOf = (obj) => {
@@ -123,7 +124,7 @@ const proxyConsole = () => {
     });
 };
 proxyConsole();
-
+*/
 
 const EPOCH = new Date();
 
@@ -254,15 +255,12 @@ async function createCollectionsFromCanonical(collections) {
     state.replications[replicationStateKey] = replicationState;
   }
 
-    /*
     for (const replicationState of Object.values(state.replications)) {
         replicationState.reSync();
         await replicationState.awaitInSync();
     }
-    */
 
     // TODO: Multiple bots.
-    /*
     botPersona = await db.collections["persona"]
         .findOne({ selector: { personaType: "bot" } })
         .exec();
@@ -275,7 +273,6 @@ async function createCollectionsFromCanonical(collections) {
             modifiedAt: new Date().getTime(),
         });
     }
-    */
 }
 
 async function createReplicationState(collection) {
@@ -305,7 +302,7 @@ async function createReplicationState(collection) {
         return [];
       },
 
-      batchSize: 5,
+      batchSize: 50,
       modifier: (doc) => doc,
     },
 
@@ -315,8 +312,16 @@ async function createReplicationState(collection) {
 
         const canonicalDocumentChangesKey =
           getCanonicalDocumentChangesKey(collectionName);
-        const documents =
-          state.canonicalDocumentChanges[canonicalDocumentChangesKey] || []; // TODO: Clear on processing? Batch size?
+
+        var documents = [];
+        for (let i = 0; i < batchSize; i++) {
+            const el = (state.canonicalDocumentChanges[canonicalDocumentChangesKey] || []).shift();
+            if (el) {
+                documents.push(el);
+            } else {
+                break;
+            }
+        }
 
         const checkpoint =
           documents.length === 0
@@ -342,16 +347,20 @@ async function createReplicationState(collection) {
   return replicationState;
 }
 
-function syncDocsFromCanonical(collectionName, changedDocs) {
+async function syncDocsFromCanonical(collectionName, changedDocs) {
   const replicationStateKey = getReplicationStateKey(collectionName);
   const replicationState = state.replications[replicationStateKey];
 
   const canonicalDocumentChangesKey =
     getCanonicalDocumentChangesKey(collectionName);
 
-  state.canonicalDocumentChanges[canonicalDocumentChangesKey] = changedDocs;
+  if (!state.canonicalDocumentChanges[canonicalDocumentChangesKey]) {
+    state.canonicalDocumentChanges[canonicalDocumentChangesKey] = [];
+  }
+  state.canonicalDocumentChanges[canonicalDocumentChangesKey].push = changedDocs;
 
   replicationState.reSync();
+    await replicationState.awaitInSync();
 }
 
 // Public API.
@@ -361,6 +370,8 @@ window.syncDocsFromCanonical = syncDocsFromCanonical;
 // Debug.
 window._db = db;
 window._state = state;
+
+
 
 
 
