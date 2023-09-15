@@ -129,6 +129,8 @@ const EPOCH = new Date();
 
 addRxPlugin(RxDBDevModePlugin);
 
+let botPersona;
+
 const ChatOnMacPlugin = {
   name: "chatonmac",
   rxdb: true,
@@ -200,34 +202,24 @@ const ChatOnMacPlugin = {
                 }),
               }
             );
-            const data = await resp.json();
+            if (resp.ok) {
+                const data = await resp.json();
 
-            const content = data.choices[0].message.content;
-            const createdAt = new Date().getTime();
+                const content = data.choices[0].message.content;
+                const createdAt = new Date().getTime();
 
-            // TODO: Multiple bots.
-            let botPersona = await personaCollection
-              .findOne({ selector: { personaType: "bot" } })
-              .exec();
-            if (!botPersona) {
-                botPersona = db.collections["persona"].insert({
+                collection.insert({
                     id: crypto.randomUUID(),
-                    name: "ChatBOT,
-                    personaType: "bot",
-                    modelOptions: ["gpt-3.5-turbo", "gpt-4"],
-                    modifiedAt: Date().getTime(),
+                    content,
+                    type: "message",
+                    room: documentData.room,
+                    sender: botPersona.id,
+                    createdAt,
+                    modifiedAt: createdAt,
                 });
+            } else {
+                documentData.retryablePersonaFailures.push(botPersona.id);
             }
-
-            collection.insert({
-              id: crypto.randomUUID(),
-              content,
-              type: "message",
-              room: documentData.room,
-              sender: botPersona.id,
-              createdAt,
-              modifiedAt: createdAt,
-            });
           });
         }
       },
@@ -261,6 +253,20 @@ async function createCollectionsFromCanonical(collections) {
     const replicationStateKey = getReplicationStateKey(collectionName);
     state.replications[replicationStateKey] = replicationState;
   }
+
+    // TODO: Multiple bots.
+    botPersona = await db.collections["persona"]
+        .findOne({ selector: { personaType: "bot" } })
+        .exec();
+    if (!botPersona) {
+        botPersona = db.collections["persona"].insert({
+            id: crypto.randomUUID(),
+            name: "ChatBOT",
+            personaType: "bot",
+            modelOptions: ["gpt-3.5-turbo", "gpt-4"],
+            modifiedAt: Date().getTime(),
+        });
+    }
 }
 
 async function createReplicationState(collection) {
