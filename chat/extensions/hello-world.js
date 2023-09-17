@@ -1,10 +1,9 @@
-import { addRxPlugin, createRxDatabase, lastOfArray } from "skypack:rxdb";
+import { addRxPlugin, createRxDatabase, lastOfArray, deepEqual } from "skypack:rxdb";
 
 import { RxDBDevModePlugin } from "skypack:rxdb/plugins/dev-mode";
 import { replicateRxCollection } from "skypack:rxdb/plugins/replication";
 import { getRxStorageMemory } from "skypack:rxdb/plugins/storage-memory";
 
-/*
 // Console proxy, modified from livecodes
 // typeOf modified from https://github.com/alexindigo/precise-typeof/blob/master/index.js
 const typeOf = (obj) => {
@@ -124,7 +123,7 @@ const proxyConsole = () => {
     });
 };
 proxyConsole();
-*/
+
 
 const EPOCH = new Date();
 
@@ -246,6 +245,10 @@ function getCanonicalDocumentChangesKey(collectionName) {
 }
 
 async function createCollectionsFromCanonical(collections) {
+  for (const [collectionName, collection] of Object.entries(collections)) {
+      collections[collectionName]["conflictHandler"] = window.conflictHandler;
+  }
+
   await db.addCollections(collections);
 
   const collectionEntries = Object.entries(db.collections);
@@ -258,20 +261,6 @@ async function createCollectionsFromCanonical(collections) {
     for (const replicationState of Object.values(state.replications)) {
         replicationState.reSync();
         await replicationState.awaitInSync();
-    }
-
-    // TODO: Multiple bots.
-    botPersona = await db.collections["persona"]
-        .findOne({ selector: { personaType: "bot" } })
-        .exec();
-    if (!botPersona) {
-        botPersona = db.collections["persona"].insert({
-            id: crypto.randomUUID(),
-            name: "ChatBOT",
-            personaType: "bot",
-            modelOptions: ["gpt-3.5-turbo", "gpt-4"],
-            modifiedAt: new Date().getTime(),
-        });
     }
 }
 
@@ -356,18 +345,82 @@ async function syncDocsFromCanonical(collectionName, changedDocs) {
   if (!state.canonicalDocumentChanges[canonicalDocumentChangesKey]) {
     state.canonicalDocumentChanges[canonicalDocumentChangesKey] = [];
   }
-  state.canonicalDocumentChanges[canonicalDocumentChangesKey].push(changedDocs);
+  state.canonicalDocumentChanges[canonicalDocumentChangesKey].push(...changedDocs);
 
   replicationState.reSync();
     await replicationState.awaitInSync();
 }
 
+async function finishedSyncingDocsFromCanonical() {
+    for (const replicationState of Object.values(state.replications)) {
+        replicationState.reSync();
+        await replicationState.awaitInSync();
+    }
+
+    // TODO: Multiple bots.
+    botPersona = await db.collections["persona"]
+        .findOne({ selector: { personaType: "bot" } })
+        .exec();
+    if (!botPersona) {
+        botPersona = await db.collections["persona"].insert({
+            id: crypto.randomUUID(),
+            name: "ChatBOT",
+            personaType: "bot",
+            modelOptions: ["gpt-3.5-turbo", "gpt-4"],
+            modifiedAt: new Date().getTime(),
+        });
+    }
+    await botPersona.patch({ online: true, modifiedAt: new Date().getTime() });
+}
+
+    /**
+     * The conflict handler gets 3 input properties:
+     * - assumedMasterState: The state of the document that is assumed to be on the master branch
+     * - newDocumentState: The new document state of the fork branch (=client) that RxDB want to write to the master
+     * - realMasterState: The real master state of the document
+     */
+function conflictHandler(i) {
+    /**
+     * Here we detect if a conflict exists in the first place.
+     * If there is no conflict, we return isEqual=true.
+     * If there is a conflict, return isEqual=false.
+     * In the default handler we do a deepEqual check,
+     * but in your custom conflict handler you probably want
+     * to compare specific properties of the document, like the updatedAt time,
+     * for better performance because deepEqual() is expensive.
+     */
+    if (deepEqual(
+        i.newDocumentState,
+        i.realMasterState
+    )) {
+        return Promise.resolve({
+            isEqual: true
+        });
+    }
+
+    /**
+     * If a conflict exists, we have to resolve it.
+     * The default conflict handler will always
+     * drop the fork state and use the master state instead.
+     * 
+     * In your custom conflict handler you likely want to merge properties
+     * of the realMasterState and the newDocumentState instead.
+     */
+    return Promise.resolve({
+        isEqual: false,
+        documentData: i.newDocumentState.modifiedAt > i.realMasterState.modifiedAt ? i.realMasterState : i.newDocumentState,
+    });
+}
+
 // Public API.
+window.conflictHandler = conflictHandler;
 window.createCollectionsFromCanonical = createCollectionsFromCanonical;
 window.syncDocsFromCanonical = syncDocsFromCanonical;
+window.finishedSyncingDocsFromCanonical = finishedSyncingDocsFromCanonical;
 
 // Debug.
 window._db = db;
 window._state = state;
+
 
 
