@@ -374,13 +374,12 @@ async function finishedSyncingDocsFromCanonical() {
     }
 }
 
-async function getProvidedBotsIn(room) {
+async function getProvidedBotsIn(extension, room) {
     var bots = [];
     if (room && room.participants && room.participants.length > 0) {
-        let allInRoomMap = await db.collections["persona"].findByIds(room.participants);
-        let allInRoom = Object.values(allInRoomMap);
-        for (const inRoom of allInRoom) {
-            if (inRoom.providedByExtension === extension.id && inRoom.personaType === "bot") {
+        let allInRoomMap = await db.collections["persona"].findByIds(room.participants).exec();
+        for (const [pID, participant] of allInRoomMap.entries()) {
+            if (participant.providedByExtension === extension.id && participant.personaType === "bot") {
                 bots.push(inRoom);
             }
         }
@@ -390,7 +389,7 @@ async function getProvidedBotsIn(room) {
 
 async function getBotPersonas(room) {
     let extension = await db.collections["code_extension"].findOne().exec();
-    let botPersonas = await getProvidedBotsIn(room);
+    let botPersonas = await getProvidedBotsIn(extension, room);
     if (botPersonas.length > 0) {
         return botPersonas;
     }
@@ -398,7 +397,7 @@ async function getBotPersonas(room) {
     let allRooms = await db.collections["room"].find().exec();
     var bots = []
     for (const otherRoom of allRooms) {
-        botPersonas = await getProvidedBotsIn(otherRoom);
+        botPersonas = await getProvidedBotsIn(extension, otherRoom);
         if (botPersonas.length > 0) {
             bots.push(...botPersonas)
         }
@@ -470,8 +469,3 @@ window.finishedSyncingDocsFromCanonical = finishedSyncingDocsFromCanonical;
 // Debug.
 window._db = db;
 window._state = state;
-
-
-
-
-
