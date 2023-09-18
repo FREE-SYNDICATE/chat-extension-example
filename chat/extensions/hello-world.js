@@ -129,8 +129,6 @@ const EPOCH = new Date();
 
 addRxPlugin(RxDBDevModePlugin);
 
-let botPersona;
-
 const ChatOnMacPlugin = {
   name: "chatonmac",
   rxdb: true,
@@ -180,6 +178,14 @@ const ChatOnMacPlugin = {
             );
             messageHistory.sort((a, b) => b - a);
 
+            const room = await db.collection["room"].findOne(documentData.room);
+            const botPersonas = await getBotPersonas(room);
+            const botPersona = botPersonas.length ? botPersonas[0] : null;
+            if (!botPersona) {
+                console.log("No matching bot to emit from.")
+                return;
+            }
+
             // TODO: Error handling.
             const resp = await fetch(
               "code://code/load/api.openai.com/v1/chat/completions",
@@ -202,11 +208,13 @@ const ChatOnMacPlugin = {
                 }),
               }
             );
+
             if (resp.ok) {
                 const data = await resp.json();
 
                 const content = data.choices[0].message.content;
                 const createdAt = new Date().getTime();
+
 
                 collection.insert({
                     id: crypto.randomUUID(),
@@ -360,7 +368,46 @@ async function finishedSyncingDocsFromCanonical() {
     }
 
     // TODO: Multiple bots.
-    botPersona = await db.collections["persona"]
+    const botPersonas = await getBotPersonas(null);
+    for (const botPersona of botPersonas) {
+        await botPersona?.patch({ online: true, modifiedAt: new Date().getTime() });
+    }
+}
+
+async function getProvidedBotsIn(room) {
+    var bots = [];
+    if (room && room.participants && room.participants.length > 0) {
+        let allInRoomMap = await db.collections["persona"].findByIds(room.participants);
+        let allInRoom = Object.values(allInRoomMap);
+        for (const inRoom of allInRoom) {
+            if (inRoom.providedByExtension === extension.id && inRoom.personaType === "bot") {
+                bots.push(inRoom);
+            }
+        }
+    }
+    return bots;
+}
+
+async function getBotPersonas(room) {
+    let extension = await db.collections["code_extension"].findOne().exec();
+    let botPersonas = await getProvidedBotsIn(room);
+    if (botPersonas.length > 0) {
+        return botPersonas;
+    }
+
+    let allRooms = await db.collections["room"].find().exec();
+    var bots = []
+    for (const otherRoom of allRooms) {
+        botPersonas = await getProvidedBotsIn(otherRoom);
+        if (botPersonas.length > 0) {
+            bots.push(...botPersonas)
+        }
+    }
+    if (bots.length > 0) {
+        return bots
+    }
+
+    let botPersona = await db.collections["persona"]
         .findOne({ selector: { personaType: "bot" } })
         .exec();
     if (!botPersona) {
@@ -372,7 +419,7 @@ async function finishedSyncingDocsFromCanonical() {
             modifiedAt: new Date().getTime(),
         });
     }
-    await botPersona.patch({ online: true, modifiedAt: new Date().getTime() });
+    return [botPersona]
 }
 
     /**
@@ -423,6 +470,8 @@ window.finishedSyncingDocsFromCanonical = finishedSyncingDocsFromCanonical;
 // Debug.
 window._db = db;
 window._state = state;
+
+
 
 
 
