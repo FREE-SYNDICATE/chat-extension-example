@@ -232,6 +232,8 @@ addRxPlugin(ChatOnMacPlugin);
 const db = await createRxDatabase({
   name: "database", // TODO: Does this matter?
   storage: getRxStorageMemory(),
+    eventReduce: true,
+    multiInstance: false, // Change this when ported to web or etc.
 });
 
 const state = { replications: {}, canonicalDocumentChanges: {} };
