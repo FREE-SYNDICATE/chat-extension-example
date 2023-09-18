@@ -177,8 +177,7 @@ const ChatOnMacPlugin = {
               })
             );
             messageHistory.sort((a, b) => b - a);
-
-            const room = await db.collection["room"].findOne(documentData.room);
+            const room = await db.collections["room"].findOne(documentData.room).exec();
             const botPersonas = await getBotPersonas(room);
             const botPersona = botPersonas.length ? botPersonas[0] : null;
             if (!botPersona) {
@@ -370,7 +369,11 @@ async function finishedSyncingDocsFromCanonical() {
     // TODO: Multiple bots.
     const botPersonas = await getBotPersonas(null);
     for (const botPersona of botPersonas) {
-        await botPersona?.patch({ online: true, modifiedAt: new Date().getTime() });
+        if (!botPersona.online) {
+            // Refresh instance (somehow stale otherwise).
+            let bot = await db.collections["persona"].findOne(botPersona.id).exec();
+            await bot.patch({ online: true, modifiedAt: new Date().getTime() });
+        }
     }
 }
 
@@ -378,9 +381,9 @@ async function getProvidedBotsIn(extension, room) {
     var bots = [];
     if (room && room.participants && room.participants.length > 0) {
         let allInRoomMap = await db.collections["persona"].findByIds(room.participants).exec();
-        for (const [pID, participant] of allInRoomMap.entries()) {
+        for (const participant of allInRoomMap.values()) {
             if (participant.providedByExtension === extension.id && participant.personaType === "bot") {
-                bots.push(inRoom);
+                bots.push(participant);
             }
         }
     }
@@ -469,3 +472,4 @@ window.finishedSyncingDocsFromCanonical = finishedSyncingDocsFromCanonical;
 // Debug.
 window._db = db;
 window._state = state;
+
