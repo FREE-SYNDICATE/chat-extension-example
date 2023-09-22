@@ -245,10 +245,14 @@ const ChatOnMacPlugin = {
                         } catch (error) {
                             var eventDoc = await db.collections["event"].findOne(documentData.id).exec();
                             await eventDoc.modify((docData) => {
-                                docData.failureMessages += [error.message];
-                                docData.retryablePersonaFailures += [botPersona.id];
+                                docData.failureMessages = docData.failureMessages.concat(error.message);
+                                docData.retryablePersonaFailures = docData.retryablePersonaFailures.concat(botPersona.id);
                                 return docData;
                             });
+    /*for (const replicationState of Object.values(state.replications)) {
+        replicationState.reSync();
+        await replicationState.awaitInSync();
+    }*/
                         }
                     });
                 }
@@ -312,7 +316,6 @@ async function createReplicationState(collection) {
         push: {
             async handler(docs) {
                 //console.log("Called push handler with: ", docs);
-
                 window.webkit.messageHandlers.surrogateDocumentChanges.postMessage({
                     collectionName: collection.name,
                     changedDocs: docs.map((row) => {
