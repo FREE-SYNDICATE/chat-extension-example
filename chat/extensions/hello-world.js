@@ -207,7 +207,10 @@ const ChatOnMacPlugin = {
                                 "code://code/load/api.openai.com/v1/chat/completions",
                                 {
                                     method: "POST",
-                                    headers: { "Content-Type": "application/json" },
+                                    headers: {
+                                        "Content-Type": "application/json",
+                                        "X-Chat-Trace-Event": documentData.id,
+                                    },
                                     body: JSON.stringify({
                                         model: botPersona.selectedModel,
                                         temperature: botPersona.modelTemperature,
@@ -226,7 +229,9 @@ const ChatOnMacPlugin = {
                                 }
                             );
 
-                            if (!resp.ok) throw new Error(response.status);
+                            if (!resp.ok) {
+                                throw new Error(resp.message);
+                            }
 
                             const data = await resp.json();
 
@@ -244,7 +249,7 @@ const ChatOnMacPlugin = {
                             });
                         } catch (error) {
                             var eventDoc = await db.collections["event"].findOne(documentData.id).exec();
-                            await eventDoc.modify((docData) => {
+                            await eventDoc.incrementalModify((docData) => {
                                 docData.failureMessages = docData.failureMessages.concat(error.message);
                                 docData.retryablePersonaFailures = docData.retryablePersonaFailures.concat(botPersona.id);
                                 return docData;
