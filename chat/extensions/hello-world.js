@@ -130,115 +130,138 @@ const EPOCH = new Date();
 addRxPlugin(RxDBDevModePlugin);
 
 const ChatOnMacPlugin = {
-  name: "chatonmac",
-  rxdb: true,
-  hooks: {
-    createRxCollection: {
-      after: async (args) => {
-        const db = args.collection.database;
-        const collection = args.collection;
+    name: "chatonmac",
+    rxdb: true,
+    hooks: {
+        createRxCollection: {
+            after: async (args) => {
+                const db = args.collection.database;
+                const collection = args.collection;
 
-        if (collection.name === "event") {
-          collection.$.subscribe(async ({ documentData, collectionName }) => {
-            if (documentData.createdAt < EPOCH.getTime()) {
-              return;
-            }
-            const personaCollection = db.collections["persona"];
-            const persona = await personaCollection
-              .findOne({
-                selector: { id: documentData.sender },
-              })
-              .exec();
-            if (persona?.personaType !== "user") {
-              return;
-            }
+                if (collection.name === "event") {
+                    collection.insert$.subscribe(async ({ documentData, collectionName }) => {
+                        if (documentData.createdAt < EPOCH.getTime()) {
+                            return;
+                        }
+                        const personaCollection = db.collections["persona"];
+                        const persona = await personaCollection
+                            .findOne({
+                                selector: { id: documentData.sender },
+                            })
+                            .exec();
+                        if (persona?.personaType !== "user") {
+                            return;
+                        }
 
-            // Build message history.
-            const messages = await collection
-              .find({
-                selector: {
-                  room: documentData.room,
-                },
-                limit: 10, // TODO: This is constrained by the model's token limit.
-                sort: [{ createdAt: "desc" }],
-              })
-              .exec();
+                        // Build message history.
+                        const messages = await collection
+                            .find({
+                                selector: {
+                                    room: documentData.room,
+                                },
+                                limit: 10, // TODO: This is constrained by the model's token limit.
+                                sort: [{ createdAt: "desc" }],
+                            })
+                            .exec();
 
-            const messageHistory = await Promise.all(
-              messages.map(async ({ content, persona }) => {
-                const foundPersona = await personaCollection
-                  .findOne({ selector: { id: persona } })
-                  .exec();
-                return {
-                  role:
-                    foundPersona.personaType === "bot" ? "assistant" : "user",
-                  content,
-                };
-              })
-            );
-            messageHistory.sort((a, b) => b - a);
-            const room = await db.collections["room"].findOne(documentData.room).exec();
-            const botPersonas = await getBotPersonas(room);
-            const botPersona = botPersonas.length ? botPersonas[0] : null;
-            if (!botPersona) {
-                console.log("No matching bot to emit from.")
-                return;
-            }
+                        const messageHistory = await Promise.all(
+                            messages.map(async ({ content, persona }) => {
+                                const foundPersona = await personaCollection
+                                    .findOne({ selector: { id: persona } })
+                                    .exec();
+                                return {
+                                    role:
+                                    foundPersona.personaType === "bot" ? "assistant" : "user",
+                                    content,
+                                };
+                            })
+                        );
+                        messageHistory.sort((a, b) => b - a);
+                        const room = await db.collections["room"].findOne(documentData.room).exec();
+                        const botPersonas = await getBotPersonas(room);
+                        const botPersona = botPersonas.length ? botPersonas[0] : null;
+                        if (!botPersona) {
+                            console.log("No matching bot to emit from.")
+                            return;
+                        }
 
-            // TODO: Error handling.
-            const resp = await fetch(
-              "code://code/load/api.openai.com/v1/chat/completions",
-              {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  model: "gpt-3.5-turbo",
-                  messages: [
-                    {
-                      role: "system",
-                      content: "You are a helpful assistant.",
-                    },
-                    ...messageHistory,
-                    {
-                      role: "user",
-                      content: documentData.content,
-                    },
-                  ],
-                }),
-              }
-            );
+                        if (!botPersona.selectedModel) {
+                            botPersona.selectedModel = botPersona.modelOptions[0];
+                        }
 
-            if (resp.ok) {
-                const data = await resp.json();
+                        var systemPrompt = "";
+                        if (botPersona.customInstructionForContext || botPersona.customInstructionForReplies) {
+                            if (botPersona.customInstructionForContext) {
+                                systemPrompt += botPersona.customInstructionForContext.trim() + "\n\n"
+                            }
+                            if (botPersona.customInstructionForResponses) {
+                                systemPrompt += botPersona.customInstructionForResponses.trim() + "\n\n"
+                            }
+                        } else {
+                            systemPrompt = "You are a helpful assistant.";
+                        }
+                        systemPrompt = systemPrompt.trim();
 
-                const content = data.choices[0].message.content;
-                const createdAt = new Date().getTime();
+                        try {
+                            const resp = await fetch(
+                                "code://code/load/api.openai.com/v1/chat/completions",
+                                {
+                                    method: "POST",
+                                    headers: { "Content-Type": "application/json" },
+                                    body: JSON.stringify({
+                                        model: botPersona.selectedModel,
+                                        temperature: botPersona.modelTemperature,
+                                        messages: [
+                                            {
+                                                role: "system",
+                                                content: systemPrompt,
+                                            },
+                                            ...messageHistory,
+                                            {
+                                                role: "user",
+                                                content: documentData.content,
+                                            },
+                                        ],
+                                    }),
+                                }
+                            );
 
+                            if (!resp.ok) throw new Error(response.status);
 
-                collection.insert({
-                    id: crypto.randomUUID(),
-                    content,
-                    type: "message",
-                    room: documentData.room,
-                    sender: botPersona.id,
-                    createdAt,
-                    modifiedAt: createdAt,
-                });
-            } else {
-                documentData.retryablePersonaFailures.push(botPersona.id);
-            }
-          });
-        }
-      },
+                            const data = await resp.json();
+
+                            const content = data.choices[0].message.content;
+                            const createdAt = new Date().getTime();
+
+                            collection.insert({
+                                id: crypto.randomUUID(),
+                                content,
+                                type: "message",
+                                room: documentData.room,
+                                sender: botPersona.id,
+                                createdAt,
+                                modifiedAt: createdAt,
+                            });
+                        } catch (error) {
+                            var eventDoc = await db.collections["event"].findOne(documentData.id).exec();
+                            await eventDoc.modify((docData) => {
+                                docData.failureMessages += [error.message];
+                                docData.retryablePersonaFailures += [botPersona.id];
+                                return docData;
+                            });
+                        }
+                    });
+                }
+            },
+        },
     },
-  },
 };
 
 addRxPlugin(ChatOnMacPlugin);
 
 const db = await createRxDatabase({
-  name: "database", // TODO: Does this matter?
-  storage: getRxStorageMemory(),
+    name: "database", // TODO: Does this matter?
+    storage: getRxStorageMemory(),
     eventReduce: true,
     multiInstance: false, // Change this when ported to web or etc.
 });
@@ -246,26 +269,26 @@ const db = await createRxDatabase({
 const state = { replications: {}, canonicalDocumentChanges: {} };
 
 function getReplicationStateKey(collectionName) {
-  return `${collectionName}ReplicationState`;
+    return `${collectionName}ReplicationState`;
 }
 
 function getCanonicalDocumentChangesKey(collectionName) {
-  return `${collectionName}CanonicalDocumentChanges`;
+    return `${collectionName}CanonicalDocumentChanges`;
 }
 
 async function createCollectionsFromCanonical(collections) {
-  for (const [collectionName, collection] of Object.entries(collections)) {
-      collections[collectionName]["conflictHandler"] = window.conflictHandler;
-  }
+    for (const [collectionName, collection] of Object.entries(collections)) {
+        collections[collectionName]["conflictHandler"] = window.conflictHandler;
+    }
 
-  await db.addCollections(collections);
+    await db.addCollections(collections);
 
-  const collectionEntries = Object.entries(db.collections);
-  for (const [collectionName, collection] of collectionEntries) {
-    const replicationState = await createReplicationState(collection);
-    const replicationStateKey = getReplicationStateKey(collectionName);
-    state.replications[replicationStateKey] = replicationState;
-  }
+    const collectionEntries = Object.entries(db.collections);
+    for (const [collectionName, collection] of collectionEntries) {
+        const replicationState = await createReplicationState(collection);
+        const replicationStateKey = getReplicationStateKey(collectionName);
+        state.replications[replicationStateKey] = replicationState;
+    }
 
     for (const replicationState of Object.values(state.replications)) {
         replicationState.reSync();
@@ -274,93 +297,94 @@ async function createCollectionsFromCanonical(collections) {
 }
 
 async function createReplicationState(collection) {
-  const { name: collectionName } = collection;
+    const { name: collectionName } = collection;
 
-  const replicationState = replicateRxCollection({
-    collection,
-    replicationIdentifier: `${collectionName}-replication`,
-    live: true,
-    retryTime: 5 * 1000,
-    waitForLeadership: true,
-    autoStart: true,
+    const replicationState = replicateRxCollection({
+        collection,
+        replicationIdentifier: `${collectionName}-replication`,
+        live: true,
+        retryTime: 5 * 1000,
+        waitForLeadership: true,
+        autoStart: true,
 
-    deletedField: "isDeleted",
+        deletedField: "isDeleted",
 
-    push: {
-      async handler(docs) {
-        //console.log("Called push handler with: ", docs);
+        push: {
+            async handler(docs) {
+                //console.log("Called push handler with: ", docs);
 
-        window.webkit.messageHandlers.surrogateDocumentChanges.postMessage({
-          collectionName: collection.name,
-          changedDocs: docs.map((row) => {
-            return row.newDocumentState;
-          }),
-        });
+                window.webkit.messageHandlers.surrogateDocumentChanges.postMessage({
+                    collectionName: collection.name,
+                    changedDocs: docs.map((row) => {
+                        return row.newDocumentState;
+                    }),
+                });
 
-        return [];
-      },
+                return [];
+            },
 
-      batchSize: 50,
-      modifier: (doc) => doc,
-    },
+            batchSize: 50,
+            modifier: (doc) => doc,
+        },
 
-    pull: {
-      async handler(lastCheckpoint, batchSize) {
-        //console.log("Called pull handler with: ", lastCheckpoint, batchSize);
+        pull: {
+            async handler(lastCheckpoint, batchSize) {
+                //console.log("Called pull handler with: ", lastCheckpoint, batchSize);
 
-        const canonicalDocumentChangesKey =
-          getCanonicalDocumentChangesKey(collectionName);
-        var documents = [];
-        for (let i = 0; i < batchSize; i++) {
-            const el = (state.canonicalDocumentChanges[canonicalDocumentChangesKey] || []).shift();
-            if (el) {
-                documents.push(el);
-            } else {
-                break;
-            }
-        }
+                const canonicalDocumentChangesKey =
+                    getCanonicalDocumentChangesKey(collectionName);
+                var documents = [];
+                for (let i = 0; i < batchSize; i++) {
+                    const el = (state.canonicalDocumentChanges[canonicalDocumentChangesKey] || []).shift();
+                    if (el) {
+                        documents.push(el);
+                    } else {
+                        break;
+                    }
+                }
 
-        const checkpoint =
-          documents.length === 0
-            ? lastCheckpoint
-            : {
-                id: lastOfArray(documents).id,
-                modifiedAt: lastOfArray(documents).modifiedAt,
-              };
+                const checkpoint =
+                    documents.length === 0
+                    ? lastCheckpoint
+                    : {
+                        id: lastOfArray(documents).id,
+                        modifiedAt: lastOfArray(documents).modifiedAt,
+                    };
 
-        window[`${collectionName}LastCheckpoint`] = checkpoint;
+                window[`${collectionName}LastCheckpoint`] = checkpoint;
 
-        return {
-          documents,
-          checkpoint,
-        };
-      },
+                return {
+                    documents,
+                    checkpoint,
+                };
+            },
 
-      batchSize: 10,
-      modifier: (doc) => doc,
-    },
-  });
+            batchSize: 10,
+            modifier: (doc) => doc,
+        },
+    });
 
-  return replicationState;
+    return replicationState;
 }
 
 async function syncDocsFromCanonical(collectionName, changedDocs) {
-  const replicationStateKey = getReplicationStateKey(collectionName);
-  const replicationState = state.replications[replicationStateKey];
+    const replicationStateKey = getReplicationStateKey(collectionName);
+    const replicationState = state.replications[replicationStateKey];
 
-  const canonicalDocumentChangesKey =
-    getCanonicalDocumentChangesKey(collectionName);
+    const canonicalDocumentChangesKey =
+        getCanonicalDocumentChangesKey(collectionName);
 
-  if (!state.canonicalDocumentChanges[canonicalDocumentChangesKey]) {
-    state.canonicalDocumentChanges[canonicalDocumentChangesKey] = [];
-  }
-  state.canonicalDocumentChanges[canonicalDocumentChangesKey].push(...changedDocs);
+    if (!state.canonicalDocumentChanges[canonicalDocumentChangesKey]) {
+        state.canonicalDocumentChanges[canonicalDocumentChangesKey] = [];
+    }
+    state.canonicalDocumentChanges[canonicalDocumentChangesKey].push(...changedDocs);
 
-  replicationState.reSync();
+    replicationState.reSync();
     await replicationState.awaitInSync();
 }
 
 async function finishedSyncingDocsFromCanonical() {
+    console.log("finishedSyncingDocsFromCan()")
     for (const replicationState of Object.values(state.replications)) {
         replicationState.reSync();
         await replicationState.awaitInSync();
@@ -372,8 +396,15 @@ async function finishedSyncingDocsFromCanonical() {
         if (!botPersona.online) {
             // Refresh instance (somehow stale otherwise).
             let bot = await db.collections["persona"].findOne(botPersona.id).exec();
-            await bot.patch({ online: true, modifiedAt: new Date().getTime() });
+            await bot.incrementalPatch({ online: true, modifiedAt: new Date().getTime() });
         }
+        botPersona.online$.subscribe(async online => {
+            if (!online) {
+                // Refresh instance (somehow stale otherwise).
+                let bot = await db.collections["persona"].findOne(botPersona.id).exec();
+                await bot.incrementalPatch({ online: true, modifiedAt: new Date().getTime() });
+            }
+        });
     }
 }
 
@@ -398,15 +429,15 @@ async function getBotPersonas(room) {
     }
 
     let allRooms = await db.collections["room"].find().exec();
-    var bots = []
+    var bots = [];
     for (const otherRoom of allRooms) {
         botPersonas = await getProvidedBotsIn(extension, otherRoom);
         if (botPersonas.length > 0) {
-            bots.push(...botPersonas)
+            bots.push(...botPersonas);
         }
     }
     if (bots.length > 0) {
-        return bots
+        return bots;
     }
 
     let botPersona = await db.collections["persona"]
@@ -417,19 +448,20 @@ async function getBotPersonas(room) {
             id: crypto.randomUUID(),
             name: "ChatBOT",
             personaType: "bot",
+            online: true,
             modelOptions: ["gpt-3.5-turbo", "gpt-4"],
             modifiedAt: new Date().getTime(),
         });
     }
-    return [botPersona]
+    return [botPersona];
 }
 
-    /**
-     * The conflict handler gets 3 input properties:
-     * - assumedMasterState: The state of the document that is assumed to be on the master branch
-     * - newDocumentState: The new document state of the fork branch (=client) that RxDB want to write to the master
-     * - realMasterState: The real master state of the document
-     */
+/**
+ * The conflict handler gets 3 input properties:
+ * - assumedMasterState: The state of the document that is assumed to be on the master branch
+ * - newDocumentState: The new document state of the fork branch (=client) that RxDB want to write to the master
+ * - realMasterState: The real master state of the document
+ */
 function conflictHandler(i) {
     /**
      * Here we detect if a conflict exists in the first place.
