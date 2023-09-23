@@ -85,7 +85,19 @@ function consoleArgs(args) {
                 return {
                     type: typeOf(arg),
                     content: Object.keys(arg).reduce(
-                        (acc, key) => ({ ...acc, [key]: consoleArgs([arg[key]])[0].content }),
+                        (acc, key) => {
+                            console.log(key);
+                            //var objectsVisited = objectsVisited || new Set();
+                            //if (objectsVisited && objectsVisited.has(typeOf(arg))) {
+                            //    return "[...]";
+                            //}
+                            //objectsVisited.add(typeOf(arg));
+                            const toVisit = arg[key];
+                            if (typeOf(toVisit) === 'object') {
+                                return "[Object]";
+                            }
+                            return { ...acc, [key]: consoleArgs([arg[key]])[0].content };
+                        },
                         {},
                     ),
                 };
@@ -229,11 +241,11 @@ const ChatOnMacPlugin = {
                                 }
                             );
 
-                            if (!resp.ok) {
-                                throw new Error(resp.message);
-                            }
-
                             const data = await resp.json();
+
+                            if (!resp.ok) {
+                                throw new Error(data.error.message);
+                            }
 
                             const content = data.choices[0].message.content;
                             const createdAt = new Date().getTime();
@@ -250,7 +262,7 @@ const ChatOnMacPlugin = {
                         } catch (error) {
                             var eventDoc = await db.collections["event"].findOne(documentData.id).exec();
                             await eventDoc.incrementalModify((docData) => {
-                                docData.failureMessages = docData.failureMessages.concat(error.message);
+                                docData.failureMessages = docData.failureMessages.concat(error);
                                 docData.retryablePersonaFailures = docData.retryablePersonaFailures.concat(botPersona.id);
                                 return docData;
                             });
@@ -512,4 +524,5 @@ window.finishedSyncingDocsFromCanonical = finishedSyncingDocsFromCanonical;
 // Debug.
 window._db = db;
 window._state = state;
+
 
